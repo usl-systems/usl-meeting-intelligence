@@ -23,6 +23,10 @@ Last updated: 2025-04-05
   - `src/lib/converter.ts` — detects and handles VTT, speaker-labeled, raw paragraph formats; strips filler words; normalizes speaker names
   - `src/lib/chunker.ts` — splits at speaker boundaries, never mid-sentence, 100-token overlap, uses tiktoken (cl100k_base)
   - Jest test suite with 5 passing tests in `src/lib/__tests__/converter.test.ts`
+- **Phase 1, Session 2 complete:** Chunk summarizer API route built
+  - `src/app/api/chunk/route.ts` — POST endpoint calling OpenRouter with chunk summarizer prompt
+  - Returns `{ signals: ChunkSignals }` on success, `{ error, detail }` on failure
+  - 30s timeout, max_tokens 1500, strips markdown fences from response
 
 ## Pre-Build Checklist Status
 
@@ -42,6 +46,6 @@ Last updated: 2025-04-05
 
 ## What Is Next
 
-1. **Phase 1, Session 2:** Build chunk summarizer API route (`src/app/api/chunk/route.ts`)
-2. Phase 1, Session 3: Build final reducer API route (`src/app/api/summarize/route.ts`) and pipeline orchestrator (`src/lib/pipeline.ts`)
-3. Phase 1, Session 4: Build quality checker API route (`src/app/api/quality/route.ts`) and rule-based pre-check (`src/lib/qualityCheck.ts`)
+1. **Phase 1, Session 3:** Build final reducer API route (`src/app/api/summarize/route.ts`) and pipeline orchestrator (`src/lib/pipeline.ts`)
+2. Phase 1, Session 4: Build quality checker API route (`src/app/api/quality/route.ts`) and rule-based pre-check (`src/lib/qualityCheck.ts`)
+3. Phase 2, Session 1: Build input page and template selector (`src/app/page.tsx`)
