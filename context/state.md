@@ -19,6 +19,10 @@ Last updated: 2025-04-05
   - Packages: mammoth, webvtt-parser, docx, tiktoken, openai, react-markdown, remark-gfm
   - Types in `src/types/index.ts`: MeetingType, MeetingMetadata, ChunkSignals, MeetingSummary, QualityResult
   - `npm run build` passes with zero errors
+- **Phase 1, Session 1 complete:** Markdown converter and chunker built
+  - `src/lib/converter.ts` — detects and handles VTT, speaker-labeled, raw paragraph formats; strips filler words; normalizes speaker names
+  - `src/lib/chunker.ts` — splits at speaker boundaries, never mid-sentence, 100-token overlap, uses tiktoken (cl100k_base)
+  - Jest test suite with 5 passing tests in `src/lib/__tests__/converter.test.ts`
 
 ## Pre-Build Checklist Status
 
@@ -38,6 +42,6 @@ Last updated: 2025-04-05
 
 ## What Is Next
 
-1. **Phase 1, Session 1:** Build markdown converter (`src/lib/converter.ts`) and chunker (`src/lib/chunker.ts`)
-2. Phase 1, Session 2: Build chunk summarizer API route (`src/app/api/chunk/route.ts`)
-3. Phase 1, Session 3: Build final reducer API route (`src/app/api/summarize/route.ts`) and pipeline orchestrator (`src/lib/pipeline.ts`)
+1. **Phase 1, Session 2:** Build chunk summarizer API route (`src/app/api/chunk/route.ts`)
+2. Phase 1, Session 3: Build final reducer API route (`src/app/api/summarize/route.ts`) and pipeline orchestrator (`src/lib/pipeline.ts`)
+3. Phase 1, Session 4: Build quality checker API route (`src/app/api/quality/route.ts`) and rule-based pre-check (`src/lib/qualityCheck.ts`)
