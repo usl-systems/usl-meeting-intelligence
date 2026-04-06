@@ -43,6 +43,10 @@ Last updated: 2025-04-05
   - Quality badge (green/amber/red) with score, high-severity warning banner
   - Loading state with spinner, progress bar, chunk progress message
   - Quality checker wired: POST /api/quality called after pipeline completes
+- **Phase 2, Session 3 complete:** Export functions built
+  - Export toolbar with 4 buttons: Copy Markdown, Download .md, Download .docx, Copy Email
+  - `src/lib/exportDocx.ts` — structured DOCX export with headings, tables, bullet lists, metadata
+  - Clipboard buttons show "Copied!" for 2 seconds, downloads use `meeting-summary-YYYY-MM-DD` naming
 
 ## Pre-Build Checklist Status
 
@@ -62,6 +66,6 @@ Last updated: 2025-04-05
 
 ## What Is Next
 
-1. **Phase 2, Session 3:** Build export functions (copy markdown, download .md, copy email)
-2. Phase 2, Session 4: Full end-to-end smoke test
-3. Phase 3, Session 1: Transcript file parsing (.vtt, .txt, .docx)
+1. **Phase 2, Session 4:** Full end-to-end smoke test
+2. Phase 3, Session 1: Transcript file parsing (.vtt, .txt, .docx)
+3. Phase 3, Session 2: Summary export as .docx (already done — merged into Session 2.3)

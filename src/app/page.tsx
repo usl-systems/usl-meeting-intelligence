@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { runPipeline } from '@/lib/pipeline';
+import { exportDocx } from '@/lib/exportDocx';
 import type { MeetingType, MeetingMetadata, QualityResult } from '@/types';
 
 const MEETING_TYPES: { value: MeetingType; label: string; description: string }[] = [
@@ -221,6 +222,58 @@ export default function Home() {
     }
   };
 
+  // Export state
+  const [copiedMarkdown, setCopiedMarkdown] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const getExportDate = useCallback(() => {
+    return date || new Date().toISOString().slice(0, 10);
+  }, [date]);
+
+  const handleCopyMarkdown = useCallback(async () => {
+    if (!summaryMarkdown) return;
+    await navigator.clipboard.writeText(summaryMarkdown);
+    setCopiedMarkdown(true);
+    setTimeout(() => setCopiedMarkdown(false), 2000);
+  }, [summaryMarkdown]);
+
+  const handleDownloadMd = useCallback(() => {
+    if (!summaryMarkdown) return;
+    const blob = new Blob([summaryMarkdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `meeting-summary-${getExportDate()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [summaryMarkdown, getExportDate]);
+
+  const handleDownloadDocx = useCallback(async () => {
+    if (!summaryMarkdown) return;
+    const metadata: MeetingMetadata = {};
+    if (title) metadata.title = title;
+    if (date) metadata.date = date;
+    if (attendees) metadata.attendees = attendees.split(',').map((a) => a.trim()).filter(Boolean);
+    const blob = await exportDocx(summaryMarkdown, metadata);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `meeting-summary-${getExportDate()}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [summaryMarkdown, title, date, attendees, getExportDate]);
+
+  const handleCopyEmail = useCallback(async () => {
+    if (!summaryMarkdown) return;
+    const match = summaryMarkdown.match(/## Follow-Up Email Draft[\s]*\n([\s\S]*?)(?=\n## |$)/);
+    const emailText = match ? match[1].trim() : '';
+    if (emailText) {
+      await navigator.clipboard.writeText(emailText);
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+    }
+  }, [summaryMarkdown]);
+
   const quotes = summaryMarkdown ? parseQuotes(summaryMarkdown) : [];
   const highSeverityIssues = quality?.issues.filter((i) => i.severity === 'high') || [];
 
@@ -410,8 +463,38 @@ export default function Home() {
         {/* Summary Display */}
         {summaryMarkdown && !isGenerating && (
           <div className="mt-8">
-            {/* Quality Badge */}
-            <div className="flex justify-end mb-4">
+            {/* Export Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-200">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyMarkdown}
+                  className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  {copiedMarkdown ? 'Copied!' : 'Copy Markdown'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadMd}
+                  className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Download .md
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadDocx}
+                  className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Download .docx
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyEmail}
+                  className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  {copiedEmail ? 'Copied!' : 'Copy Email'}
+                </button>
+              </div>
               {quality && <QualityBadge quality={quality} />}
             </div>
 
