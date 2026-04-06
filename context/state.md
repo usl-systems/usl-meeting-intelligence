@@ -27,6 +27,9 @@ Last updated: 2025-04-05
   - `src/app/api/chunk/route.ts` — POST endpoint calling OpenRouter with chunk summarizer prompt
   - Returns `{ signals: ChunkSignals }` on success, `{ error, detail }` on failure
   - 30s timeout, max_tokens 1500, strips markdown fences from response
+- **Phase 1, Session 3 complete:** Final reducer API route and pipeline orchestrator built
+  - `src/app/api/summarize/route.ts` — POST endpoint calling OpenRouter with final reducer prompt, returns `{ markdown }`, 3000 max_tokens, 60s timeout
+  - `src/lib/pipeline.ts` — orchestrates convert -> chunk -> /api/chunk (500ms delays) -> /api/summarize, exposes `onProgress` callback for UI
 
 ## Pre-Build Checklist Status
 
@@ -46,6 +49,6 @@ Last updated: 2025-04-05
 
 ## What Is Next
 
-1. **Phase 1, Session 3:** Build final reducer API route (`src/app/api/summarize/route.ts`) and pipeline orchestrator (`src/lib/pipeline.ts`)
-2. Phase 1, Session 4: Build quality checker API route (`src/app/api/quality/route.ts`) and rule-based pre-check (`src/lib/qualityCheck.ts`)
-3. Phase 2, Session 1: Build input page and template selector (`src/app/page.tsx`)
+1. **Phase 1, Session 4:** Build quality checker API route (`src/app/api/quality/route.ts`) and rule-based pre-check (`src/lib/qualityCheck.ts`)
+2. Phase 2, Session 1: Build input page and template selector (`src/app/page.tsx`)
+3. Phase 2, Session 2: Build summary display and quote panel
