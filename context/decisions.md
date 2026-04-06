@@ -33,3 +33,11 @@ Architectural decisions and the reasoning behind them. Written once, never delet
 **Decision:** GitHub repo named `usl-meeting-intelligence` under personal account (`irewole2019`), not under `uslsystems` org.
 
 **Reason:** Solo builder project. Can be transferred to the org repo later if needed.
+
+---
+
+## 2025-04-05 — Next.js 14.2.35 (not latest Next.js 15)
+
+**Decision:** Scaffolded with `create-next-app@14` per the Build Sequence spec, which targets Next.js 14 App Router.
+
+**Reason:** The PRD and Build Sequence were written for Next.js 14. Upgrading to 15 mid-build would introduce breaking changes (async request APIs, Turbopack defaults) with no v1 value. Stable and well-documented.
