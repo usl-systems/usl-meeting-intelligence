@@ -30,6 +30,9 @@ Last updated: 2025-04-05
 - **Phase 1, Session 3 complete:** Final reducer API route and pipeline orchestrator built
   - `src/app/api/summarize/route.ts` — POST endpoint calling OpenRouter with final reducer prompt, returns `{ markdown }`, 3000 max_tokens, 60s timeout
   - `src/lib/pipeline.ts` — orchestrates convert -> chunk -> /api/chunk (500ms delays) -> /api/summarize, exposes `onProgress` callback for UI
+- **Phase 1, Session 4 complete:** Quality checker API route and rule-based pre-check built
+  - `src/lib/qualityCheck.ts` — rule-based pre-check catches missing sections, short output, excessive TBDs without model call
+  - `src/app/api/quality/route.ts` — POST endpoint, runs pre-check first, calls OpenRouter for deeper review if no high-severity issues, merges and deduplicates results
 
 ## Pre-Build Checklist Status
 
@@ -49,6 +52,6 @@ Last updated: 2025-04-05
 
 ## What Is Next
 
-1. **Phase 1, Session 4:** Build quality checker API route (`src/app/api/quality/route.ts`) and rule-based pre-check (`src/lib/qualityCheck.ts`)
-2. Phase 2, Session 1: Build input page and template selector (`src/app/page.tsx`)
-3. Phase 2, Session 2: Build summary display and quote panel
+1. **Phase 2, Session 1:** Build input page and template selector (`src/app/page.tsx`)
+2. Phase 2, Session 2: Build summary display and quote panel
+3. Phase 2, Session 3: Build export functions (copy markdown, download .md, copy email)
