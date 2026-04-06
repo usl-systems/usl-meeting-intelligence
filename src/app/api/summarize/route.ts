@@ -93,16 +93,20 @@ export async function POST(request: NextRequest) {
       { timeout: 60000 }
     );
 
-    const content = completion.choices[0]?.message?.content;
+    const rawContent = completion?.choices?.[0]?.message?.content;
 
-    if (!content) {
+    if (!rawContent) {
+      console.error('Summarize empty response:', JSON.stringify(completion, null, 2));
       return NextResponse.json(
-        { error: 'OpenRouter returned no content' },
+        { error: `OpenRouter returned no content. Model: ${model}` },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ markdown: content.trim() });
+    // Strip <think>...</think> blocks (Qwen 3 reasoning output)
+    const content = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+    return NextResponse.json({ markdown: content });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json(

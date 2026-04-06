@@ -10,7 +10,31 @@ interface ChunkRequest {
 }
 
 const SYSTEM_PROMPT =
-  'You are a meeting analyst. Extract structured signals from the transcript excerpt below. Output only valid JSON matching this schema exactly. Do not include any preamble, explanation, or markdown formatting. Output raw JSON only. Schema: { "decisions": [{"text": string, "rationale": string}], "pain_points": [{"speaker": string, "text": string}], "action_items": [{"description": string, "owner": string, "due_date": string}], "quote_candidates": [{"speaker": string, "timestamp": string, "text": string, "signal_type": string}], "open_questions": [string] }';
+  'You are a meeting analyst. Extract structured signals from the transcript excerpt below. Output only valid JSON matching this schema exactly. Do not include any preamble, explanation, or markdown formatting. Output raw JSON only. Do not wrap your response in any thinking tags. Schema: { "decisions": [{"text": string, "rationale": string}], "pain_points": [{"speaker": string, "text": string}], "action_items": [{"description": string, "owner": string, "due_date": string}], "quote_candidates": [{"speaker": string, "timestamp": string, "text": string, "signal_type": string}], "open_questions": [string] }';
+
+function extractJson(raw: string): string {
+  // Strip <think>...</think> blocks (Qwen 3 reasoning output)
+  let cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // Strip markdown code fences
+  cleaned = cleaned
+    .replace(/^```(?:json)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .trim();
+
+  // If there's still no JSON-like content, try to find it
+  if (!cleaned.startsWith('{')) {
+    const jsonStart = cleaned.indexOf('{');
+    if (jsonStart !== -1) {
+      const jsonEnd = cleaned.lastIndexOf('}');
+      if (jsonEnd > jsonStart) {
+        cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+      }
+    }
+  }
+
+  return cleaned;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,26 +78,35 @@ export async function POST(request: NextRequest) {
       { timeout: 30000 }
     );
 
-    const content = completion.choices[0]?.message?.content;
+    // Safely access the response — OpenRouter may return unexpected shapes
+    const content = completion?.choices?.[0]?.message?.content;
 
     if (!content) {
+      console.error('OpenRouter empty response:', JSON.stringify(completion, null, 2));
       return NextResponse.json(
-        { error: 'Empty response', detail: 'OpenRouter returned no content' },
+        { error: 'Empty response', detail: `OpenRouter returned no content. Model: ${model}. Choices: ${JSON.stringify(completion?.choices)}` },
         { status: 500 }
       );
     }
 
-    // Strip markdown code fences if present
-    const cleaned = content
-      .replace(/^```(?:json)?\s*\n?/i, '')
-      .replace(/\n?```\s*$/i, '')
-      .trim();
+    const cleaned = extractJson(content);
 
-    const signals: ChunkSignals = JSON.parse(cleaned);
+    let signals: ChunkSignals;
+    try {
+      signals = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error('JSON parse failed. Raw content:', content);
+      console.error('Cleaned content:', cleaned);
+      return NextResponse.json(
+        { error: 'Invalid JSON response', detail: `Model returned unparseable content. First 200 chars: ${content.slice(0, 200)}` },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ signals });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Chunk route error:', message);
     return NextResponse.json(
       { error: 'Chunk processing failed', detail: message },
       { status: 500 }
