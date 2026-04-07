@@ -51,6 +51,13 @@ Last updated: 2025-04-05
 - **Phase 3, Session 1 complete:** File parsing wired into UI
   - `src/lib/fileParser.ts` — parses .vtt (speaker labels + timestamps), .txt (raw), .docx (mammoth)
   - File upload populates transcript textarea, shows "Reading file..." while parsing, inline error on failure
+- **Phase 4, Session 1 complete:** Error handling and resilience
+  - Chunk retry with 2s delay, skip on second failure with UI warning
+  - Malformed reducer output shown with warning banner instead of crash
+  - Transcript length check with inline warning at 120k chars
+  - API key check on load via /api/health, disables Generate if missing
+  - Network offline detection with "check your connection" message, form state preserved
+  - Pipeline returns `{ markdown, warnings }` instead of raw string
 
 ## Pre-Build Checklist Status
 
@@ -70,8 +77,7 @@ Last updated: 2025-04-05
 
 ## What Is Next
 
-1. **Phase 4, Session 1:** Error handling and edge cases (retries, timeouts, transcript too long, offline)
-2. Phase 4, Session 2: Prompt tuning against real transcripts (started — prompts rewritten)
-3. Phase 5, Session 1: Vercel production deployment
-4. Phase 5, Session 2: Custom domain (meeting.uslsystems.co)
-5. Phase 5, Session 3: Production hardening (security headers, robots.txt, rate limiting, health check)
+1. **Phase 4, Session 2:** Prompt tuning against real transcripts (started — prompts rewritten)
+2. Phase 5, Session 1: Vercel production deployment
+3. Phase 5, Session 2: Custom domain (meeting.uslsystems.co)
+4. Phase 5, Session 3: Production hardening (security headers, robots.txt, rate limiting, health check)

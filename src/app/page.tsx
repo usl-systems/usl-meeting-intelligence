@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { runPipeline } from '@/lib/pipeline';
 import { exportDocx } from '@/lib/exportDocx';
 import { parseFile } from '@/lib/fileParser';
 import type { MeetingType, MeetingMetadata, QualityResult } from '@/types';
+
+const MAX_TRANSCRIPT_CHARS = 120000;
 
 const MEETING_TYPES: { value: MeetingType; label: string; description: string }[] = [
   { value: 'sales_discovery', label: 'Sales Discovery', description: 'Needs, objections, next steps, quotes' },
@@ -160,12 +162,31 @@ export default function Home() {
   const [showChatLog, setShowChatLog] = useState(false);
   const [chatLog, setChatLog] = useState('');
 
+  // Config state
+  const [configError, setConfigError] = useState<string | null>(null);
+
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [summaryMarkdown, setSummaryMarkdown] = useState<string | null>(null);
   const [quality, setQuality] = useState<QualityResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [transcriptWarning, setTranscriptWarning] = useState<string | null>(null);
+
+  // Check API key on load
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.config?.hasApiKey) {
+          setConfigError('OpenRouter API key is not configured. Add OPENROUTER_API_KEY to your .env.local file and restart the server.');
+        }
+      })
+      .catch(() => {
+        // Health check failed — server may not be running
+      });
+  }, []);
 
   // File parsing state
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -194,11 +215,23 @@ export default function Home() {
     }
   };
 
+  // Check transcript length when it changes
+  useEffect(() => {
+    if (transcript.length > MAX_TRANSCRIPT_CHARS) {
+      setTranscriptWarning(
+        `Transcript is ${transcript.length.toLocaleString()} characters (limit: ${MAX_TRANSCRIPT_CHARS.toLocaleString()}). Very long transcripts may produce lower quality output.`
+      );
+    } else {
+      setTranscriptWarning(null);
+    }
+  }, [transcript]);
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
     setSummaryMarkdown(null);
     setQuality(null);
+    setWarnings([]);
     setProgress({ current: 0, total: 0 });
 
     try {
@@ -216,14 +249,15 @@ export default function Home() {
         onProgress: (current, total) => setProgress({ current, total }),
       });
 
-      setSummaryMarkdown(result);
+      setSummaryMarkdown(result.markdown);
+      setWarnings(result.warnings);
 
       // Run quality check
       try {
         const qualityRes = await fetch('/api/quality', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ markdown: result }),
+          body: JSON.stringify({ markdown: result.markdown }),
         });
         if (qualityRes.ok) {
           const { result: qualityResult } = await qualityRes.json();
@@ -298,6 +332,13 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white">
       <div className={`mx-auto px-6 py-12 ${summaryMarkdown ? 'max-w-6xl' : 'max-w-3xl'} transition-all`}>
+        {/* Config Error Banner */}
+        {configError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {configError}
+          </div>
+        )}
+
         {/* Header */}
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Meeting Intelligence</h1>
         <p className="text-gray-500 mb-10">
@@ -340,6 +381,9 @@ export default function Home() {
           />
           {fileError && (
             <p className="mt-2 text-sm text-red-600">{fileError}</p>
+          )}
+          {transcriptWarning && (
+            <p className="mt-2 text-sm text-amber-600">{transcriptWarning}</p>
           )}
         </div>
 
@@ -464,7 +508,7 @@ export default function Home() {
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={!transcript.trim() || isGenerating}
+          disabled={!transcript.trim() || isGenerating || !!configError}
           className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-lg text-base hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
           {isGenerating ? 'Generating...' : 'Generate Summary'}
@@ -480,6 +524,15 @@ export default function Home() {
         {/* Loading State */}
         {isGenerating && (
           <LoadingState current={progress.current} total={progress.total} />
+        )}
+
+        {/* Pipeline Warnings */}
+        {warnings.length > 0 && !isGenerating && (
+          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            {warnings.map((w, i) => (
+              <p key={i} className="text-sm text-amber-700">{w}</p>
+            ))}
+          </div>
         )}
 
         {/* Summary Display */}
