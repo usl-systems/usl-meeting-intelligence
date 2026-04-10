@@ -25,20 +25,34 @@ const REQUIRED_SECTIONS = [
 ];
 
 function extractSection(markdown: string, heading: string): string | null {
-  // Escape special regex characters in heading
-  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(
-    `^## ${escaped}[\\s]*\\n([\\s\\S]*?)(?=^## |$)`,
-    'm'
-  );
-  const match = markdown.match(pattern);
-  return match ? match[1].trim() : null;
+  // Split markdown into sections by ## headings
+  const sections = markdown.split(/^## /m);
+
+  for (const section of sections) {
+    // Check if this section starts with the heading we want
+    const firstLine = section.split('\n')[0]?.trim();
+    if (firstLine === heading) {
+      const body = section.slice(firstLine.length).trim();
+      return body;
+    }
+  }
+
+  return null;
+}
+
+function countQuotes(section: string): number {
+  const lines = section.split('\n').filter((l) => l.trim().length > 0);
+  // Count lines starting with > or - or * or numbered list items (quote formats vary)
+  return lines.filter((l) => {
+    const t = l.trim();
+    return t.startsWith('>') || t.startsWith('-') || t.startsWith('*') || /^\d+\./.test(t);
+  }).length;
 }
 
 export function runPreCheck(markdown: string): QualityResult {
   const issues: QualityIssue[] = [];
 
-  // Check total word count — with tighter prompts, 200 is a reasonable floor
+  // Check total word count
   const wordCount = markdown.split(/\s+/).filter(Boolean).length;
   if (wordCount < 200) {
     issues.push({
@@ -54,7 +68,7 @@ export function runPreCheck(markdown: string): QualityResult {
     if (content === null) {
       const isHighSeverity = ['Executive Summary', 'Next Steps', 'Key Quotes', 'Follow-Up Email Draft'].includes(section);
       issues.push({
-        type: `missing_section`,
+        type: 'missing_section',
         description: `Missing ## ${section} section.`,
         severity: isHighSeverity ? 'high' : 'medium',
       });
@@ -65,7 +79,7 @@ export function runPreCheck(markdown: string): QualityResult {
   const nextSteps = extractSection(markdown, 'Next Steps');
   if (nextSteps) {
     const tbdCount = (nextSteps.match(/\bTBD\b/g) || []).length;
-    const rowCount = (nextSteps.match(/^\|(?!\s*-)/gm) || []).length - 1; // subtract header row
+    const rowCount = (nextSteps.match(/^\|(?!\s*-)/gm) || []).length - 1;
     if (rowCount > 0 && tbdCount > Math.ceil(rowCount * 0.6)) {
       issues.push({
         type: 'excessive_tbd',
@@ -75,15 +89,15 @@ export function runPreCheck(markdown: string): QualityResult {
     }
   }
 
-  // Check Key Quotes has content
+  // Check Key Quotes has enough content
   const keyQuotes = extractSection(markdown, 'Key Quotes');
   if (keyQuotes !== null) {
-    const quoteLines = keyQuotes.split('\n').filter((l) => l.trim().length > 0);
-    if (quoteLines.length < 2) {
+    const quoteCount = countQuotes(keyQuotes);
+    if (quoteCount < 2) {
       issues.push({
         type: 'weak_quote',
-        description: `Key Quotes has only ${quoteLines.length} line(s) (expected at least 4 quotes).`,
-        severity: 'high',
+        description: `Key Quotes has only ${quoteCount} quote(s) (expected at least 3).`,
+        severity: 'medium',
       });
     }
   }
@@ -98,14 +112,14 @@ export function runPreCheck(markdown: string): QualityResult {
     });
   }
 
-  const hasHighSeverity = issues.some((i) => i.severity === 'high');
-  const score = hasHighSeverity
-    ? Math.max(0, 40 - issues.length * 10)
-    : Math.max(50, 90 - issues.length * 5);
+  // Score: start at 95, deduct per issue
+  const highCount = issues.filter((i) => i.severity === 'high').length;
+  const mediumCount = issues.filter((i) => i.severity === 'medium').length;
+  const score = Math.max(0, 95 - highCount * 20 - mediumCount * 5);
 
   return {
     issues,
     score,
-    passed: !hasHighSeverity && score >= 80,
+    passed: highCount === 0 && score >= 75,
   };
 }

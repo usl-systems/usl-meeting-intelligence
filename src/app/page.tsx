@@ -193,6 +193,7 @@ export default function Home() {
   const [fileError, setFileError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -252,6 +253,11 @@ export default function Home() {
       setSummaryMarkdown(result.markdown);
       setWarnings(result.warnings);
 
+      // Scroll to summary after a brief delay for render
+      setTimeout(() => {
+        summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+
       // Run quality check
       try {
         const qualityRes = await fetch('/api/quality', {
@@ -278,9 +284,15 @@ export default function Home() {
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
 
-  const getExportDate = useCallback(() => {
-    return date || new Date().toISOString().slice(0, 10);
-  }, [date]);
+  const getExportFilename = useCallback((ext: string) => {
+    const d = date || new Date().toISOString().slice(0, 10);
+    if (title) {
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      return `${slug}-${d}.${ext}`;
+    }
+    const typeSlug = meetingType.replace(/_/g, '-');
+    return `${typeSlug}-${d}.${ext}`;
+  }, [date, title, meetingType]);
 
   const handleCopyMarkdown = useCallback(async () => {
     if (!summaryMarkdown) return;
@@ -295,10 +307,10 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `meeting-summary-${getExportDate()}.md`;
+    a.download = getExportFilename('md');
     a.click();
     URL.revokeObjectURL(url);
-  }, [summaryMarkdown, getExportDate]);
+  }, [summaryMarkdown, getExportFilename]);
 
   const handleDownloadDocx = useCallback(async () => {
     if (!summaryMarkdown) return;
@@ -310,10 +322,10 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `meeting-summary-${getExportDate()}.docx`;
+    a.download = getExportFilename('docx');
     a.click();
     URL.revokeObjectURL(url);
-  }, [summaryMarkdown, title, date, attendees, getExportDate]);
+  }, [summaryMarkdown, title, date, attendees, getExportFilename]);
 
   const handleCopyEmail = useCallback(async () => {
     if (!summaryMarkdown) return;
@@ -325,6 +337,22 @@ export default function Home() {
       setTimeout(() => setCopiedEmail(false), 2000);
     }
   }, [summaryMarkdown]);
+
+  const handleNewSummary = useCallback(() => {
+    setTranscript('');
+    setFileName(null);
+    setSummaryMarkdown(null);
+    setQuality(null);
+    setWarnings([]);
+    setError(null);
+    setProgress({ current: 0, total: 0 });
+    setChatLog('');
+    setTitle('');
+    setDate('');
+    setAttendees('');
+    setPurpose('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const quotes = summaryMarkdown ? parseQuotes(summaryMarkdown) : [];
   const highSeverityIssues = quality?.issues.filter((i) => i.severity === 'high') || [];
@@ -537,7 +565,7 @@ export default function Home() {
 
         {/* Summary Display */}
         {summaryMarkdown && !isGenerating && (
-          <div className="mt-8">
+          <div className="mt-8" ref={summaryRef}>
             {/* Export Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-200">
               <div className="flex flex-wrap items-center gap-2">
@@ -570,7 +598,16 @@ export default function Home() {
                   {copiedEmail ? 'Copied!' : 'Copy Email'}
                 </button>
               </div>
-              {quality && <QualityBadge quality={quality} />}
+              <div className="flex items-center gap-2">
+                {quality && <QualityBadge quality={quality} />}
+                <button
+                  type="button"
+                  onClick={handleNewSummary}
+                  className="px-3.5 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  New Summary
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-8">
