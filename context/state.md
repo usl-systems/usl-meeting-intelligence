@@ -84,10 +84,19 @@ Last updated: 2025-04-05
 - [ ] Test .docx transcript file collected
 - [ ] Test Teams chat export collected
 
+## v1.1 Improvements (see docs/v1.1-improvements.md)
+
+- **Wave 1 complete:** Quality checker fix, document naming, New Summary button, scroll to summary
+  - Quality checker rewrote section extraction, recalibrated scoring (95 base), 8 tests passing
+  - Exports use title slug or meeting type for filenames
+- **Wave 2 complete:** Adaptive caps, email draft panel, component extraction
+  - Prompt caps scale with chunk count (short: 3 bullets/3 decisions, long: 8/8)
+  - `EmailDraftPanel` component with blue highlight and copy button
+  - Extracted `ExportToolbar`, `QuotePanel`, `LoadingState` — page.tsx from 660 to 280 lines
+
 ## What Is Next
 
-## v1 Build Complete
-
-All phases (0-5) done. Remaining work is iteration and v1.5 scope:
-1. Prompt tuning against more real transcripts
-2. v1.5: Company knowledge integration (see docs/company-knowledge-roadmap.md)
+1. **Wave 3:** Drag-drop, toasts, streaming progress, editable summary, auto-detect, localStorage history
+2. **Wave 4:** Power Automate webhook integration
+3. Prompt tuning against more real transcripts (2.4)
+4. v1.5: Company knowledge integration (see docs/company-knowledge-roadmap.md)
