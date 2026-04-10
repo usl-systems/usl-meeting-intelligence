@@ -30,6 +30,34 @@ interface ExportToolbarProps {
   onNewSummary: () => void;
 }
 
+function markdownToHtml(md: string): string {
+  return md
+    // Headers
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    // Italic
+    .replace(/\*(.+?)\*/g, '<i>$1</i>')
+    // Blockquotes
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    // Bullet lists
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+    // Table rows → simple text (Teams has limited table support)
+    .replace(/^\|(.+)\|$/gm, (_, row) => {
+      const cells = row.split('|').map((c: string) => c.trim()).filter(Boolean);
+      return cells.join(' · ');
+    })
+    // Remove separator rows
+    .replace(/^[-| ]+$/gm, '')
+    // Tags like [Objection], [Risk], [Open Question]
+    .replace(/\[(Objection|Risk|Open Question)\]/g, '<b>[$1]</b>')
+    // Line breaks
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
 function buildWebhookPayload(props: {
   markdown: string;
   title: string;
@@ -37,13 +65,14 @@ function buildWebhookPayload(props: {
   attendees: string;
   meetingType: MeetingType;
   filename: string;
+  asHtml?: boolean;
 }) {
   return {
     meetingType: props.meetingType,
     title: props.title || 'Meeting Summary',
     date: props.date || new Date().toISOString().slice(0, 10),
     attendees: props.attendees ? props.attendees.split(',').map((a) => a.trim()).filter(Boolean) : [],
-    markdown: props.markdown,
+    markdown: props.asHtml ? markdownToHtml(props.markdown) : props.markdown,
     filename: props.filename,
   };
 }
@@ -128,7 +157,7 @@ export default function ExportToolbar({
     }
     setSendingTeams(true);
     try {
-      const payload = buildWebhookPayload({ markdown, title, date, attendees, meetingType, filename: getExportFilename('md') });
+      const payload = buildWebhookPayload({ markdown, title, date, attendees, meetingType, filename: getExportFilename('md'), asHtml: true });
       const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
