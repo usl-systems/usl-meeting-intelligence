@@ -154,7 +154,6 @@ export default function ExportToolbar({
       const payload = {
         ...buildWebhookPayload({ markdown, title, date, attendees, meetingType, filename: getExportFilename('docx') }),
         fileBase64: base64,
-        fileContentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       };
 
       const res = await fetch(webhookUrl, {
