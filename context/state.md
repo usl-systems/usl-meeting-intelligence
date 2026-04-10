@@ -108,7 +108,10 @@ Last updated: 2025-04-05
   - Set Variable maps meetingType to folder path (/Sales/, /Support/, /Internal/)
   - "Send to SharePoint" and "Send to Teams" buttons in export toolbar
   - Buttons POST structured JSON (meetingType, title, date, markdown, filename) to Make webhooks
+  - Teams: sends HTML-formatted summary (email draft excluded), includes meetingTypeLabel
+  - SharePoint: sends .docx as base64, decoded by Make into proper Word file
   - Only appear when NEXT_PUBLIC_MAKE_*_WEBHOOK_URL env vars are configured
+  - Both scenarios live and tested
 
 ## What Is Next
 
