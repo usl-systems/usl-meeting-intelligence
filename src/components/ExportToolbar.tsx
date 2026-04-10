@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import { exportDocx } from '@/lib/exportDocx';
 import type { MeetingMetadata, MeetingType, QualityResult } from '@/types';
@@ -30,6 +30,24 @@ interface ExportToolbarProps {
   onNewSummary: () => void;
 }
 
+function buildWebhookPayload(props: {
+  markdown: string;
+  title: string;
+  date: string;
+  attendees: string;
+  meetingType: MeetingType;
+  filename: string;
+}) {
+  return {
+    meetingType: props.meetingType,
+    title: props.title || 'Meeting Summary',
+    date: props.date || new Date().toISOString().slice(0, 10),
+    attendees: props.attendees ? props.attendees.split(',').map((a) => a.trim()).filter(Boolean) : [],
+    markdown: props.markdown,
+    filename: props.filename,
+  };
+}
+
 export default function ExportToolbar({
   markdown,
   quality,
@@ -40,6 +58,8 @@ export default function ExportToolbar({
   onNewSummary,
 }: ExportToolbarProps) {
   const { toast } = useToast();
+  const [sendingSharePoint, setSendingSharePoint] = useState(false);
+  const [sendingTeams, setSendingTeams] = useState(false);
 
   const getExportFilename = useCallback(
     (ext: string) => {
@@ -74,6 +94,61 @@ export default function ExportToolbar({
     toast('Downloaded ' + getExportFilename('docx'));
   }, [markdown, title, date, attendees, getExportFilename, toast]);
 
+  const handleSendToSharePoint = useCallback(async () => {
+    const webhookUrl = process.env.NEXT_PUBLIC_MAKE_SHAREPOINT_WEBHOOK_URL;
+    if (!webhookUrl) {
+      toast('SharePoint webhook not configured', 'error');
+      return;
+    }
+    setSendingSharePoint(true);
+    try {
+      const payload = buildWebhookPayload({ markdown, title, date, attendees, meetingType, filename: getExportFilename('md') });
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        toast('Sent to SharePoint');
+      } else {
+        toast(`SharePoint failed (${res.status})`, 'error');
+      }
+    } catch {
+      toast('Failed to reach SharePoint webhook', 'error');
+    } finally {
+      setSendingSharePoint(false);
+    }
+  }, [markdown, title, date, attendees, meetingType, getExportFilename, toast]);
+
+  const handleSendToTeams = useCallback(async () => {
+    const webhookUrl = process.env.NEXT_PUBLIC_MAKE_TEAMS_WEBHOOK_URL;
+    if (!webhookUrl) {
+      toast('Teams webhook not configured', 'error');
+      return;
+    }
+    setSendingTeams(true);
+    try {
+      const payload = buildWebhookPayload({ markdown, title, date, attendees, meetingType, filename: getExportFilename('md') });
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        toast('Sent to Teams');
+      } else {
+        toast(`Teams failed (${res.status})`, 'error');
+      }
+    } catch {
+      toast('Failed to reach Teams webhook', 'error');
+    } finally {
+      setSendingTeams(false);
+    }
+  }, [markdown, title, date, attendees, meetingType, getExportFilename, toast]);
+
+  const sharepointConfigured = !!process.env.NEXT_PUBLIC_MAKE_SHAREPOINT_WEBHOOK_URL;
+  const teamsConfigured = !!process.env.NEXT_PUBLIC_MAKE_TEAMS_WEBHOOK_URL;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-200">
       <div className="flex flex-wrap items-center gap-2">
@@ -83,6 +158,26 @@ export default function ExportToolbar({
         <button type="button" onClick={handleDownloadDocx} className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
           Download .docx
         </button>
+        {sharepointConfigured && (
+          <button
+            type="button"
+            onClick={handleSendToSharePoint}
+            disabled={sendingSharePoint}
+            className="px-3.5 py-2 text-sm font-medium border border-blue-300 rounded-lg text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors"
+          >
+            {sendingSharePoint ? 'Sending...' : 'Send to SharePoint'}
+          </button>
+        )}
+        {teamsConfigured && (
+          <button
+            type="button"
+            onClick={handleSendToTeams}
+            disabled={sendingTeams}
+            className="px-3.5 py-2 text-sm font-medium border border-purple-300 rounded-lg text-purple-700 hover:bg-purple-50 disabled:opacity-50 transition-colors"
+          >
+            {sendingTeams ? 'Sending...' : 'Send to Teams'}
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {quality && <QualityBadge quality={quality} />}
