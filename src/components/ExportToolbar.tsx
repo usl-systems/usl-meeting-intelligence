@@ -131,7 +131,26 @@ export default function ExportToolbar({
     }
     setSendingSharePoint(true);
     try {
-      const payload = buildWebhookPayload({ markdown, title, date, attendees, meetingType, filename: getExportFilename('md') });
+      // Generate .docx and convert to base64
+      const metadata: MeetingMetadata = {};
+      if (title) metadata.title = title;
+      if (date) metadata.date = date;
+      if (attendees) metadata.attendees = attendees.split(',').map((a) => a.trim()).filter(Boolean);
+      const blob = await exportDocx(markdown, metadata);
+      const buffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      const payload = {
+        ...buildWebhookPayload({ markdown, title, date, attendees, meetingType, filename: getExportFilename('docx') }),
+        fileBase64: base64,
+        fileContentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      };
+
       const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
