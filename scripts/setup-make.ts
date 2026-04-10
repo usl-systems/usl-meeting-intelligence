@@ -1,14 +1,18 @@
 /**
  * Make.com Scenario Setup Script
  *
- * Creates two webhook-triggered scenarios:
- * 1. "MI – Save to SharePoint" — receives summary JSON, saves .docx to SharePoint
- * 2. "MI – Post to Teams" — receives summary JSON, posts to a Teams channel
+ * Creates two webhook-triggered scenarios for Meeting Intelligence:
+ * 1. "MI – Save Summary to SharePoint" — receives summary JSON, saves to SharePoint
+ * 2. "MI – Post Summary to Teams" — receives summary JSON, posts to Teams channel
+ *
+ * NOTE: The Make.com REST API supports creating scenarios with webhook triggers
+ * and sequential modules. Router/branching must be configured in the Make UI.
+ * This script creates the scenarios with webhook + placeholder modules, teaches
+ * the webhooks the data structure, and prints instructions for adding
+ * SharePoint/Teams modules with dynamic folder routing in the Make editor.
  *
  * Prerequisites:
- * - MAKE_API_TOKEN in .env.local
- * - MAKE_ORG_ID in .env.local
- * - MAKE_BASE_URL in .env.local (e.g., https://us2.make.com)
+ *   MAKE_API_TOKEN, MAKE_ORG_ID, MAKE_BASE_URL in .env.local
  *
  * Usage: npx tsx scripts/setup-make.ts
  */
@@ -34,9 +38,7 @@ const headers = {
 
 async function apiGet(endpoint: string, params?: Record<string, string>) {
   const url = new URL(`${BASE_URL}/api/v2${endpoint}`);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  }
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString(), { headers });
   if (!res.ok) {
     const body = await res.text();
@@ -46,8 +48,7 @@ async function apiGet(endpoint: string, params?: Record<string, string>) {
 }
 
 async function apiPost(endpoint: string, body?: Record<string, unknown>) {
-  const url = `${BASE_URL}/api/v2${endpoint}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${BASE_URL}/api/v2${endpoint}`, {
     method: 'POST',
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -60,8 +61,7 @@ async function apiPost(endpoint: string, body?: Record<string, unknown>) {
 }
 
 async function apiPatch(endpoint: string, body: Record<string, unknown>) {
-  const url = `${BASE_URL}/api/v2${endpoint}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${BASE_URL}/api/v2${endpoint}`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify(body),
@@ -73,56 +73,47 @@ async function apiPatch(endpoint: string, body: Record<string, unknown>) {
   return res.json();
 }
 
-// ── Step 1: Discover Team ID ──────────────────────────────────────
+// ── Step 1: Discovery ─────────────────────────────────────────────
 
-async function getTeamId(): Promise<number> {
-  console.log(`\n🔍 Discovering teams for org ${ORG_ID}...`);
+async function discoverTeam(): Promise<number> {
+  console.log(`\n--- Step 1: Discovery ---`);
+  console.log(`Fetching teams for org ${ORG_ID}...`);
   const data = await apiGet('/teams', { organizationId: ORG_ID! });
   const teams = data.teams || [];
-
-  if (teams.length === 0) {
-    throw new Error('No teams found in this organization. Create a team in Make first.');
-  }
-
+  if (teams.length === 0) throw new Error('No teams found. Create a team in Make.com first.');
   const team = teams[0];
-  console.log(`   Found team: "${team.name}" (ID: ${team.id})`);
+  console.log(`  Team: "${team.name}" (ID: ${team.id})`);
   return team.id;
 }
 
-// ── Step 2: Discover Microsoft 365 Connection ─────────────────────
-
-async function findM365Connection(teamId: number): Promise<{ id: number; name: string } | null> {
-  console.log(`\n🔍 Looking for Microsoft 365 connections in team ${teamId}...`);
+async function discoverConnection(teamId: number): Promise<{ id: number; name: string; type: string } | null> {
+  console.log(`Fetching connections for team ${teamId}...`);
   const data = await apiGet('/connections', { teamId: String(teamId) });
   const connections = data.connections || [];
 
-  // Look for Microsoft 365 / OneDrive / Teams connections
   const m365 = connections.find(
     (c: { accountName: string; accountLabel: string }) =>
       c.accountName.includes('microsoft') ||
+      c.accountName.includes('azure') ||
       c.accountName.includes('onedrive') ||
-      c.accountName.includes('teams') ||
-      c.accountLabel?.toLowerCase().includes('microsoft') ||
-      c.accountLabel?.toLowerCase().includes('onedrive')
+      c.accountName.includes('sharepoint') ||
+      c.accountLabel?.toLowerCase().includes('microsoft')
   );
 
   if (m365) {
-    console.log(`   Found: "${m365.name}" (ID: ${m365.id}, type: ${m365.accountName})`);
-    return { id: m365.id, name: m365.name };
+    console.log(`  Microsoft 365 Connection: "${m365.name}" (ID: ${m365.id}, type: ${m365.accountName})`);
+    return { id: m365.id, name: m365.name, type: m365.accountName };
   }
 
-  console.log('   ⚠ No Microsoft 365 connection found.');
-  console.log('   You will need to:');
-  console.log('   1. Go to Make.com → Connections → Create a connection');
-  console.log('   2. Choose "Microsoft 365" and authenticate');
-  console.log('   3. Then manually wire the connection into the scenarios');
+  console.log('  WARNING: No Microsoft 365 connection found.');
+  console.log('  Create one at Make.com > Connections > Create Connection > Microsoft 365');
   return null;
 }
 
-// ── Step 3: Create Webhooks ───────────────────────────────────────
+// ── Step 2 & 3: Create Scenarios ──────────────────────────────────
 
 async function createWebhook(teamId: number, name: string): Promise<{ id: number; url: string }> {
-  console.log(`\n📌 Creating webhook: "${name}"...`);
+  console.log(`Creating webhook: "${name}"...`);
   const data = await apiPost('/hooks', {
     name,
     teamId: String(teamId),
@@ -131,79 +122,95 @@ async function createWebhook(teamId: number, name: string): Promise<{ id: number
     headers: true,
     stringify: false,
   });
-
-  const hook = data.hook;
-  console.log(`   Webhook ID: ${hook.id}`);
-  console.log(`   URL: ${hook.url}`);
-  return { id: hook.id, url: hook.url };
+  console.log(`  Webhook ID: ${data.hook.id}`);
+  console.log(`  URL: ${data.hook.url}`);
+  return { id: data.hook.id, url: data.hook.url };
 }
-
-// ── Step 4: Create Scenarios ──────────────────────────────────────
 
 async function createScenario(
   teamId: number,
   name: string,
   hookId: number,
 ): Promise<number> {
-  console.log(`\n🔧 Creating scenario: "${name}"...`);
+  console.log(`Creating scenario: "${name}"...`);
 
-  // Create a minimal scenario — the webhook trigger + a placeholder module
-  // Full module wiring (SharePoint/Teams) must be done in the Make UI
-  // because those modules require interactive connection selection
+  // Create scenario with webhook trigger + a Set Variable placeholder
+  // The Set Variable maps meetingType so it's visible in the Make editor
+  // when the user adds SharePoint/Teams modules after.
+  const blueprint = {
+    name,
+    metadata: { version: 1 },
+    flow: [
+      {
+        id: 1,
+        module: 'gateway:CustomWebHook',
+        version: 1,
+        parameters: { hook: hookId, maxResults: 1 },
+        mapper: {},
+        metadata: { designer: { x: 0, y: 0 } },
+      },
+      {
+        id: 2,
+        module: 'util:SetVariable2',
+        version: 1,
+        parameters: {},
+        mapper: {
+          name: 'folderPath',
+          scope: 'roundtrip',
+          value: '{{if(1.meetingType = "sales_discovery"; "/Sales/Meeting Notes"; if(1.meetingType = "customer_support"; "/Support/Meeting Notes"; "/Internal/Meeting Notes"))}}',
+        },
+        metadata: { designer: { x: 300, y: 0 } },
+      },
+    ],
+  };
+
   const data = await apiPost('/scenarios', {
     teamId,
     name,
-    blueprint: JSON.stringify({
-      name,
-      metadata: { version: 1 },
-      flow: [
-        {
-          id: 1,
-          module: 'gateway:CustomWebHook',
-          version: 1,
-          parameters: { hook: hookId, maxResults: 1 },
-          mapper: {},
-          metadata: { designer: { x: 0, y: 0 } },
-        },
-      ],
-    }),
-    scheduling: JSON.stringify({
-      type: 'indefinitely',
-    }),
+    blueprint: JSON.stringify(blueprint),
+    scheduling: JSON.stringify({ type: 'indefinitely' }),
   });
 
   const scenarioId = data.scenario?.id;
-  if (!scenarioId) {
-    throw new Error('Scenario creation returned no ID. Response: ' + JSON.stringify(data));
-  }
-
-  console.log(`   Scenario ID: ${scenarioId}`);
+  if (!scenarioId) throw new Error('Scenario creation returned no ID: ' + JSON.stringify(data));
+  console.log(`  Scenario ID: ${scenarioId}`);
   return scenarioId;
 }
 
-// ── Step 5: Start webhook learning ────────────────────────────────
-
-async function startLearning(hookId: number): Promise<void> {
-  console.log(`   Starting data structure learning for hook ${hookId}...`);
-  await apiPost(`/hooks/${hookId}/learn-start`);
-  console.log(`   ✓ Webhook is now listening for a sample payload`);
+async function activateScenario(scenarioId: number): Promise<void> {
+  console.log(`Activating scenario ${scenarioId}...`);
+  try {
+    await apiPatch(`/scenarios/${scenarioId}`, { isActive: true });
+    console.log(`  Activated.`);
+  } catch (err) {
+    // Activation may fail if modules need configuration first
+    console.log(`  Could not activate (modules may need configuration in Make UI first).`);
+  }
 }
 
-// ── Step 6: Send sample payload to teach the webhook ──────────────
+// ── Step 4: Teach webhooks ────────────────────────────────────────
 
-async function sendSamplePayload(webhookUrl: string): Promise<void> {
-  console.log(`   Sending sample payload to teach the webhook data structure...`);
+async function teachWebhook(hookId: number, webhookUrl: string): Promise<void> {
+  console.log(`Teaching webhook ${hookId} the payload structure...`);
+
+  // Try to start learning (may fail due to token scope)
+  try {
+    await apiPost(`/hooks/${hookId}/learn-start`);
+  } catch {
+    console.log(`  Learn-start restricted. Sending payload directly (webhook will auto-learn).`);
+  }
 
   const samplePayload = {
     meetingType: 'sales_discovery',
-    title: 'Sample Meeting',
+    title: 'Q3 Pipeline Review with Acme Corp',
     date: '2025-04-10',
-    attendees: ['Sarah Jones', 'Mark Chen'],
-    markdown: '## Executive Summary\n\n- Sample bullet point\n\n## Key Decisions\n\n**Sample decision** — rationale (Decided by: Sarah Jones)',
-    decisions: [{ text: 'Sample decision', rationale: 'Sample rationale', decidedBy: 'Sarah Jones' }],
-    actionItems: [{ description: 'Follow up on proposal', owner: 'Mark Chen', dueDate: '2025-04-15' }],
-    quotes: [{ text: 'This is a key quote', speaker: 'Sarah Jones' }],
+    attendees: ['Sarah Jones', 'Mark Chen', 'Lisa Park'],
+    markdown: '## Executive Summary\n\n- Revenue up 15% QoQ\n- Enterprise segment strongest\n\n## Key Decisions\n\n**Delay launch to Q2** — engineering needs 3 more weeks (Decided by: Sarah Jones)',
+    decisions: [{ text: 'Delay launch to Q2', rationale: 'Engineering needs 3 weeks', decidedBy: 'Sarah Jones' }],
+    actionItems: [{ description: 'Send proposal to Acme', owner: 'Mark Chen', dueDate: '2025-04-15' }],
+    quotes: [{ text: 'Enterprise is our strongest area', speaker: 'Mark Chen' }],
     qualityScore: 90,
+    filename: 'SD-q3-pipeline-review-2025-04-10.docx',
   };
 
   const res = await fetch(webhookUrl, {
@@ -211,114 +218,85 @@ async function sendSamplePayload(webhookUrl: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(samplePayload),
   });
+  console.log(`  Sample payload sent (${res.status}).`);
 
-  if (res.ok) {
-    console.log(`   ✓ Sample payload sent successfully`);
-  } else {
-    console.log(`   ⚠ Sample payload returned ${res.status} (this is normal for learning mode)`);
+  // Try to stop learning
+  try {
+    await new Promise((r) => setTimeout(r, 2000));
+    await apiPost(`/hooks/${hookId}/learn-stop`);
+    console.log(`  Data structure learned.`);
+  } catch {
+    console.log(`  Auto-learning in progress (will complete on next payload).`);
   }
-}
-
-// ── Step 7: Stop learning ─────────────────────────────────────────
-
-async function stopLearning(hookId: number): Promise<void> {
-  // Wait a moment for Make to process the sample
-  await new Promise((r) => setTimeout(r, 2000));
-  console.log(`   Stopping data structure learning for hook ${hookId}...`);
-  await apiPost(`/hooks/${hookId}/learn-stop`);
-  console.log(`   ✓ Data structure learned`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('╔══════════════════════════════════════════════════╗');
-  console.log('║  Meeting Intelligence — Make.com Setup Script   ║');
-  console.log('╚══════════════════════════════════════════════════╝');
-  console.log(`\nBase URL: ${BASE_URL}`);
+  console.log('========================================');
+  console.log(' Meeting Intelligence - Make.com Setup');
+  console.log('========================================');
+  console.log(`Base URL: ${BASE_URL}`);
   console.log(`Org ID:   ${ORG_ID}`);
 
-  // Step 1: Get team
-  const teamId = await getTeamId();
+  // Step 1: Discovery
+  const teamId = await discoverTeam();
+  const m365 = await discoverConnection(teamId);
 
-  // Step 2: Check for M365 connection
-  const m365 = await findM365Connection(teamId);
+  // Step 2: SharePoint Scenario
+  console.log(`\n--- Step 2: SharePoint Scenario ---`);
+  const spHook = await createWebhook(teamId, 'Meeting Intelligence - SharePoint');
+  const spScenarioId = await createScenario(teamId, 'Meeting Intelligence - Save to SharePoint', spHook.id);
+  await teachWebhook(spHook.id, spHook.url);
+  await activateScenario(spScenarioId);
 
-  // Step 3: Create webhooks
-  const sharepointHook = await createWebhook(teamId, 'MI – SharePoint Webhook');
-  const teamsHook = await createWebhook(teamId, 'MI – Teams Channel Webhook');
+  // Step 3: Teams Scenario
+  console.log(`\n--- Step 3: Teams Scenario ---`);
+  const teamsHook = await createWebhook(teamId, 'Meeting Intelligence - Teams');
+  const teamsScenarioId = await createScenario(teamId, 'Meeting Intelligence - Post to Teams', teamsHook.id);
+  await teachWebhook(teamsHook.id, teamsHook.url);
+  await activateScenario(teamsScenarioId);
 
-  // Step 4: Create scenarios
-  const sharepointScenarioId = await createScenario(
-    teamId,
-    'MI – Save Summary to SharePoint',
-    sharepointHook.id,
-  );
-  const teamsScenarioId = await createScenario(
-    teamId,
-    'MI – Post Summary to Teams Channel',
-    teamsHook.id,
-  );
+  // Step 4: Output
+  console.log('\n========================================');
+  console.log(' Setup Complete');
+  console.log('========================================');
 
-  // Step 5-7: Teach webhooks the data structure
-  // Note: learn-start may fail if the API token lacks hooks:write scope for this org.
-  // In that case, the webhooks will auto-learn when they receive their first real payload.
-  console.log('\n📡 Teaching webhooks the payload structure...');
+  console.log('\nAdd these to your .env.local:\n');
+  console.log(`MAKE_SHAREPOINT_WEBHOOK_URL=${spHook.url}`);
+  console.log(`MAKE_TEAMS_WEBHOOK_URL=${teamsHook.url}`);
 
-  try {
-    await startLearning(sharepointHook.id);
-    await sendSamplePayload(sharepointHook.url);
-    await stopLearning(sharepointHook.id);
-
-    await startLearning(teamsHook.id);
-    await sendSamplePayload(teamsHook.url);
-    await stopLearning(teamsHook.id);
-  } catch {
-    console.log('   ⚠ Could not auto-teach webhooks (permission restricted).');
-    console.log('   The webhooks will learn the data structure when they');
-    console.log('   receive their first real payload from the app.');
-  }
-
-  // Summary
-  console.log('\n╔══════════════════════════════════════════════════╗');
-  console.log('║  Setup Complete!                                ║');
-  console.log('╚══════════════════════════════════════════════════╝');
-
-  console.log('\n📋 What was created:');
-  console.log(`\n   Scenario 1: "MI – Save Summary to SharePoint"`);
-  console.log(`   Scenario ID: ${sharepointScenarioId}`);
-  console.log(`   Webhook URL: ${sharepointHook.url}`);
-
-  console.log(`\n   Scenario 2: "MI – Post Summary to Teams Channel"`);
-  console.log(`   Scenario ID: ${teamsScenarioId}`);
-  console.log(`   Webhook URL: ${teamsHook.url}`);
+  console.log('\nScenario IDs:');
+  console.log(`  SharePoint: ${spScenarioId} (${BASE_URL}/scenarios/${spScenarioId})`);
+  console.log(`  Teams:      ${teamsScenarioId} (${BASE_URL}/scenarios/${teamsScenarioId})`);
 
   if (m365) {
-    console.log(`\n   Microsoft 365 Connection: "${m365.name}" (ID: ${m365.id})`);
+    console.log(`\nMicrosoft 365 Connection: "${m365.name}" (ID: ${m365.id})`);
   }
 
-  console.log('\n⚡ Next steps:');
-  console.log('   1. Open each scenario in Make.com');
-  console.log('   2. Add modules after the webhook trigger:');
-  console.log('      • Scenario 1: Add "SharePoint → Upload a File" module');
-  console.log('        Map: folder path = /Meeting Notes/{meetingType}/');
-  console.log('        Map: filename = {meetingType prefix}-{title}-{date}.docx');
-  console.log('        Map: content = {markdown}');
-  console.log('      • Scenario 2: Add "Microsoft Teams → Send a Message" module');
-  console.log('        Map: channel = your target channel');
-  console.log('        Map: message = formatted summary from {markdown}');
-  if (m365) {
-    console.log(`   3. Wire the Microsoft 365 connection (ID: ${m365.id}) to each module`);
-  } else {
-    console.log('   3. Create a Microsoft 365 connection in Make.com first');
-  }
-  console.log('   4. Turn on both scenarios');
-  console.log('   5. Add these webhook URLs to your Meeting Intelligence .env.local:');
-  console.log(`      MAKE_WEBHOOK_SHAREPOINT=${sharepointHook.url}`);
-  console.log(`      MAKE_WEBHOOK_TEAMS=${teamsHook.url}`);
+  console.log('\n--- Manual Steps in Make.com Editor ---\n');
+  console.log('Each scenario has: Webhook -> Set Variable (folderPath)');
+  console.log('The folderPath variable maps meetingType to folder:');
+  console.log('  sales_discovery   -> /Sales/Meeting Notes/');
+  console.log('  customer_support  -> /Support/Meeting Notes/');
+  console.log('  internal_sync     -> /Internal/Meeting Notes/');
+  console.log('');
+  console.log('SharePoint scenario — add after Set Variable:');
+  console.log('  1. Add "SharePoint > Upload a File" module');
+  console.log(`     Wire connection: ${m365 ? `"${m365.name}" (ID: ${m365.id})` : 'create M365 connection first'}`);
+  console.log('     Site: your SharePoint team site');
+  console.log('     Folder: map to {{2.folderPath}}');
+  console.log('     Filename: map to {{1.filename}}');
+  console.log('     Content: map to {{1.markdown}}');
+  console.log('');
+  console.log('Teams scenario — add after Set Variable:');
+  console.log('  1. Add "Microsoft Teams > Send a Message" module');
+  console.log(`     Wire connection: ${m365 ? `"${m365.name}" (ID: ${m365.id})` : 'create M365 connection first'}`);
+  console.log('     Channel: map based on meetingType or use one channel');
+  console.log('     Message: format from {{1.title}}, {{1.markdown}}, {{1.actionItems}}');
 }
 
 main().catch((err) => {
-  console.error('\n❌ Setup failed:', err.message);
+  console.error('\nSetup failed:', err.message);
   process.exit(1);
 });
