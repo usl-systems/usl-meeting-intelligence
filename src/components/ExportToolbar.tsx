@@ -31,7 +31,9 @@ interface ExportToolbarProps {
 }
 
 function markdownToHtml(md: string): string {
-  return md
+  // Remove Follow-Up Email Draft section before converting
+  const cleaned = md.replace(/## Follow-Up Email Draft[\s\S]*?(?=## |$)/, '').trim();
+  return cleaned
     // Headers
     .replace(/^## (.+)$/gm, '<h3>$1</h3>')
     .replace(/^### (.+)$/gm, '<h4>$1</h4>')
