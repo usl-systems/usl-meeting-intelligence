@@ -75,7 +75,7 @@ function buildWebhookPayload(props: {
   return {
     meetingType: props.meetingType,
     meetingTypeLabel: typeLabel,
-    title: props.title || 'Meeting Summary',
+    title: `[${typeLabel}] ${props.title || 'Meeting Summary'}`,
     date: props.date || new Date().toISOString().slice(0, 10),
     attendees: props.attendees ? props.attendees.split(',').map((a) => a.trim()).filter(Boolean) : [],
     markdown: props.asHtml ? markdownToHtml(props.markdown) : props.markdown,
