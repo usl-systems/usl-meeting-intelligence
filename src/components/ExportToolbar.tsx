@@ -69,8 +69,12 @@ function buildWebhookPayload(props: {
   filename: string;
   asHtml?: boolean;
 }) {
+  const typeLabel = props.meetingType === 'sales_discovery' ? 'Sales Discovery'
+    : props.meetingType === 'customer_support' ? 'Customer Support' : 'Internal Sync';
+
   return {
     meetingType: props.meetingType,
+    meetingTypeLabel: typeLabel,
     title: props.title || 'Meeting Summary',
     date: props.date || new Date().toISOString().slice(0, 10),
     attendees: props.attendees ? props.attendees.split(',').map((a) => a.trim()).filter(Boolean) : [],
