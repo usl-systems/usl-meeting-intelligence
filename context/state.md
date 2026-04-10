@@ -94,9 +94,16 @@ Last updated: 2025-04-05
   - `EmailDraftPanel` component with blue highlight and copy button
   - Extracted `ExportToolbar`, `QuotePanel`, `LoadingState` — page.tsx from 660 to 280 lines
 
+- **Wave 3 complete:** UX polish
+  - Drag-and-drop file upload with visual drop zone feedback
+  - Toast notification system (success/error/warning) replacing inline confirmations
+  - Streaming progress messages ("Analyzing decisions...", "Extracting quotes...")
+  - Editable summary: toggle to raw markdown, edit, save, then export
+  - Meeting type auto-detection from transcript keywords (sales/support/internal signals)
+  - Summary history in localStorage (last 10), accessible via header dropdown
+
 ## What Is Next
 
-1. **Wave 3:** Drag-drop, toasts, streaming progress, editable summary, auto-detect, localStorage history
-2. **Wave 4:** Power Automate webhook integration
-3. Prompt tuning against more real transcripts (2.4)
-4. v1.5: Company knowledge integration (see docs/company-knowledge-roadmap.md)
+1. **Wave 4:** Power Automate webhook integration
+2. Prompt tuning against more real transcripts (2.4)
+3. v1.5: Company knowledge integration (see docs/company-knowledge-roadmap.md)
