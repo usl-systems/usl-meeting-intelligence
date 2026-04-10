@@ -104,12 +104,12 @@ Last updated: 2025-04-05
 
 - **Wave 4 (partial):** Make.com integration script
   - `scripts/setup-make.ts` — auto-discovers team/connection, creates 2 scenarios with webhooks
-  - Scenarios: "MI – Save Summary to OneDrive" + "MI – Post Summary to Teams Channel"
+  - Scenarios: "MI – Save Summary to SharePoint" + "MI – Post Summary to Teams Channel"
   - Next: wire OneDrive/Teams modules in Make.com UI, add "Send to Make" buttons in app
 
 ## What Is Next
 
 1. Wire OneDrive and Teams modules in Make.com scenarios (manual step in Make UI)
-2. Add "Send to OneDrive" / "Send to Teams" buttons in the app export toolbar
+2. Add "Send to SharePoint" / "Send to Teams" buttons in the app export toolbar
 3. Prompt tuning against more real transcripts (2.4)
 4. v1.5: Company knowledge integration (see docs/company-knowledge-roadmap.md)

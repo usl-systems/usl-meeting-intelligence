@@ -2,7 +2,7 @@
  * Make.com Scenario Setup Script
  *
  * Creates two webhook-triggered scenarios:
- * 1. "MI – Save to OneDrive" — receives summary JSON, saves .docx to OneDrive
+ * 1. "MI – Save to SharePoint" — receives summary JSON, saves .docx to SharePoint
  * 2. "MI – Post to Teams" — receives summary JSON, posts to a Teams channel
  *
  * Prerequisites:
@@ -148,7 +148,7 @@ async function createScenario(
   console.log(`\n🔧 Creating scenario: "${name}"...`);
 
   // Create a minimal scenario — the webhook trigger + a placeholder module
-  // Full module wiring (OneDrive/Teams) must be done in the Make UI
+  // Full module wiring (SharePoint/Teams) must be done in the Make UI
   // because those modules require interactive connection selection
   const data = await apiPost('/scenarios', {
     teamId,
@@ -245,14 +245,14 @@ async function main() {
   const m365 = await findM365Connection(teamId);
 
   // Step 3: Create webhooks
-  const oneDriveHook = await createWebhook(teamId, 'MI – OneDrive Webhook');
+  const sharepointHook = await createWebhook(teamId, 'MI – SharePoint Webhook');
   const teamsHook = await createWebhook(teamId, 'MI – Teams Channel Webhook');
 
   // Step 4: Create scenarios
-  const oneDriveScenarioId = await createScenario(
+  const sharepointScenarioId = await createScenario(
     teamId,
-    'MI – Save Summary to OneDrive',
-    oneDriveHook.id,
+    'MI – Save Summary to SharePoint',
+    sharepointHook.id,
   );
   const teamsScenarioId = await createScenario(
     teamId,
@@ -266,9 +266,9 @@ async function main() {
   console.log('\n📡 Teaching webhooks the payload structure...');
 
   try {
-    await startLearning(oneDriveHook.id);
-    await sendSamplePayload(oneDriveHook.url);
-    await stopLearning(oneDriveHook.id);
+    await startLearning(sharepointHook.id);
+    await sendSamplePayload(sharepointHook.url);
+    await stopLearning(sharepointHook.id);
 
     await startLearning(teamsHook.id);
     await sendSamplePayload(teamsHook.url);
@@ -285,9 +285,9 @@ async function main() {
   console.log('╚══════════════════════════════════════════════════╝');
 
   console.log('\n📋 What was created:');
-  console.log(`\n   Scenario 1: "MI – Save Summary to OneDrive"`);
-  console.log(`   Scenario ID: ${oneDriveScenarioId}`);
-  console.log(`   Webhook URL: ${oneDriveHook.url}`);
+  console.log(`\n   Scenario 1: "MI – Save Summary to SharePoint"`);
+  console.log(`   Scenario ID: ${sharepointScenarioId}`);
+  console.log(`   Webhook URL: ${sharepointHook.url}`);
 
   console.log(`\n   Scenario 2: "MI – Post Summary to Teams Channel"`);
   console.log(`   Scenario ID: ${teamsScenarioId}`);
@@ -300,7 +300,7 @@ async function main() {
   console.log('\n⚡ Next steps:');
   console.log('   1. Open each scenario in Make.com');
   console.log('   2. Add modules after the webhook trigger:');
-  console.log('      • Scenario 1: Add "OneDrive → Upload a File" module');
+  console.log('      • Scenario 1: Add "SharePoint → Upload a File" module');
   console.log('        Map: folder path = /Meeting Notes/{meetingType}/');
   console.log('        Map: filename = {meetingType prefix}-{title}-{date}.docx');
   console.log('        Map: content = {markdown}');
@@ -314,7 +314,7 @@ async function main() {
   }
   console.log('   4. Turn on both scenarios');
   console.log('   5. Add these webhook URLs to your Meeting Intelligence .env.local:');
-  console.log(`      MAKE_WEBHOOK_ONEDRIVE=${oneDriveHook.url}`);
+  console.log(`      MAKE_WEBHOOK_SHAREPOINT=${sharepointHook.url}`);
   console.log(`      MAKE_WEBHOOK_TEAMS=${teamsHook.url}`);
 }
 
