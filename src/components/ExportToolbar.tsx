@@ -91,9 +91,6 @@ export default function ExportToolbar({
         <button type="button" onClick={handleCopyMarkdown} className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
           Copy Markdown
         </button>
-        <button type="button" onClick={handleDownloadMd} className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-          Download .md
-        </button>
         <button type="button" onClick={handleDownloadDocx} className="px-3.5 py-2 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
           Download .docx
         </button>
